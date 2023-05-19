@@ -18,6 +18,8 @@ urlpatterns = [
 
     path('login/', views.LoginView.as_view(), name='login'),
     path('profile/', views.TeacherProfileView.as_view(), name='profile'),
+    path('find_teachers/', views.find_teachers, name='find_teachers'),
+
 #     path('api/teachers/search/',views.TeacherSearchView.as_view(), name='teacher-search'),
 
     

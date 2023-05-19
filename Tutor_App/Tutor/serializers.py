@@ -17,7 +17,8 @@ class TeacherRegisterSerializer(serializers.ModelSerializer):
     class Meta:
         model= Teacher
         fields= ['full_name','email','phone_number','image',
-                'address','password','password_confirmation','gender'
+                'address','password','password_confirmation','gender',
+                'grade','subjects','latitude','longitude'
                             
                 ]
         read_only_fields = [ 'groups', 'user_permissions']
@@ -154,7 +155,9 @@ class TeacherSerializer(serializers.ModelSerializer):
     class Meta:
         model=Teacher
         fields=['full_name','email','phone_number','image',
-                'address','gender']
+                'address','gender',
+                'grade','subjects','latitude','longitude'
+                ]
         
 class StudentSerializer(serializers.ModelSerializer):
     class Meta:

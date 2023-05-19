@@ -201,22 +201,48 @@ class StudentList(ListAPIView):
     queryset= Student.objects.all()
     serializer_class = StudentSerializer
 
-# class TeacherSearchView(APIView):
-#     def get(self,request):
-#         classes = Class.objects.all()
-#         class_numbers = [class_obj.class_number for class_obj in classes]
+from django.http import JsonResponse
+from math import radians, sin, cos, sqrt, atan2
+from .models import Teacher
+from django.views.decorators.csrf import csrf_exempt
 
-#         return Response({'classes': class_numbers})
+@csrf_exempt
+def find_teachers(request):
+    if request.method == 'POST':
+        latitude = float(request.POST.get('latitude'))
+        longitude = float(request.POST.get('longitude'))
+        print(".......................................")
+        print(latitude)
+        print(longitude)
 
-#     def post(self, request):
-#         class_number = request.data.get('class_number')
-#         subject_ids = request.data.get('subjects', [])
+        # Haversine Formula to calculate distance
+        def calculate_distance(lat1, lon1, lat2, lon2):
+            R = 6371  # Radius of the Earth in kilometers
+            dlat = radians(float(lat2) - float(lat1))
+            dlon = radians(float(lon2) - float(lon1))
+            a = sin(dlat / 2) ** 2 + cos(radians(float(lat1))) * cos(radians(float(lat2))) * sin(dlon / 2) ** 2
+            c = 2 * atan2(sqrt(a), sqrt(1 - a))
+            distance = R * c
+            print("......................................................")
+            print(distance)
+            return distance
+        # Find teachers within 3 km radius
+        teachers = Teacher.objects.all()
+        nearby_teachers = []
+        for teacher in teachers:
+            teacher_latitude = teacher.latitude
+            teacher_longitude = teacher.longitude
+            distance = calculate_distance(latitude, longitude, teacher_latitude, teacher_longitude)
+            if distance <= 3:
+                nearby_teachers.append(teacher)
 
-#         try:
-#             class_obj = Class.objects.get(class_number=class_number)
-#             subjects = Subject.objects.filter(id__in=subject_ids, classes=class_obj)
-#             teachers = Teacher.objects.filter(teaching_grades=class_obj, subject__in=subjects)
-#             serializer = TeacherSerializer(teachers, many=True)
-#             return Response(serializer.data)
-#         except Class.DoesNotExist:
-#             return Response({"error": "Invalid class number"}, status=400)
+        # Return the list of nearby teachers
+        teacher_data = [{'name': teacher.full_name, 'latitude': teacher.latitude, 'longitude': teacher.longitude}
+                        for teacher in nearby_teachers]
+        print(teacher_data)
+        print(teacher.full_name)
+        response = {
+            'teachers': teacher_data
+        }
+
+        return JsonResponse(response)
