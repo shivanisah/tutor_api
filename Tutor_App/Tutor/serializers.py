@@ -1,5 +1,8 @@
+from collections import OrderedDict
+import json
+from django.http import HttpResponse, JsonResponse
 from rest_framework import serializers
-from .models import Student, Teacher
+from .models import Admin, ClassSubject, EnrollmentForm, Student, Subject, Teacher,Class, TimeSlot, User
 from django.contrib.auth import get_user_model,password_validation,authenticate
 
 
@@ -18,7 +21,7 @@ class TeacherRegisterSerializer(serializers.ModelSerializer):
         model= Teacher
         fields= ['full_name','email','phone_number','image',
                 'address','password','password_confirmation','gender',
-                'grade','subjects','latitude','longitude'
+                'grade','subjects','latitude','longitude','certificate'
                             
                 ]
         read_only_fields = [ 'groups', 'user_permissions']
@@ -53,10 +56,10 @@ class StudentRegisterSerializer(serializers.ModelSerializer):
 
     class Meta:
         model= Student
-        fields= ['full_name','email','phone_number','image',
-                'address','grade','subjects','password','password_confirmation'
+        fields= ['email','password','password_confirmation'
                             
                 ]
+
         # read_only_fields = [ 'groups', 'user_permissions']
     
 
@@ -79,39 +82,6 @@ class StudentRegisterSerializer(serializers.ModelSerializer):
             return data
 
 
-# class LoginSerializer(serializers.Serializer):
-#     email = serializers.EmailField()
-#     password = serializers.CharField(
-#         style={'input_type': 'password'}, write_only=True
-#     )
-# def validate(self, attrs):
-#         email = attrs.get('email')
-#         password = attrs.get('password')
-
-#         if email and password:
-#             # Check if provided credentials are valid for a Teacher object
-#             teacher = authenticate(email=email, password=password, model=Teacher)
-#             if teacher:
-#                 attrs['user'] = teacher
-#                 return attrs
-
-#             # Check if provided credentials are valid for a Student object
-#             student = authenticate(email=email, password=password, model=Student)
-#             if student:
-#                 attrs['user'] = student
-#                 return attrs
-
-#             raise serializers.ValidationError('Unable to login with provided credentials')
-#         else:
-#             raise serializers.ValidationError('Must include email and password')    
-
-
-# class LoginStudentSerializer(serializers.Serializer):
-#     model = Student
-#     email = serializers.EmailField()
-#     password = serializers.CharField(
-#         style={'input_type': 'password'}, write_only=True
-#     )
 
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
@@ -132,7 +102,13 @@ class LoginSerializer(serializers.Serializer):
                     user = Student.objects.get(email=email)
                     user_type = 'student'
                 except Student.DoesNotExist:
-                    raise serializers.ValidationError({'email': 'User with provided email does not exist'})
+                    # raise serializers.ValidationError({'email': 'User with provided email does not exist'})
+                    try:
+                        # user=User.objects.get(email = email)
+                        user = Admin.objects.get(email = email)
+                        user_type="admin"
+                    except Admin.DoesNotExist:
+                        raise serializers.ValidationError({'email': 'User with provided email does not exist'})
 
             user = authenticate(email=email, password=password)
 
@@ -144,36 +120,94 @@ class LoginSerializer(serializers.Serializer):
 
             data['user'] = user
             data['user_type'] = user_type
+            # data['admin'] = admin
             return data
         else:
             raise serializers.ValidationError({'credentials': 'Must include "email" and "password".'})
 
         
+class TimeSlotSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TimeSlot
+        fields = '__all__'          
 
 
 class TeacherSerializer(serializers.ModelSerializer):
+    time_slots = TimeSlotSerializer(many=True, read_only=True)
+
     class Meta:
         model=Teacher
-        fields=['full_name','email','phone_number','image',
-                'address','gender',
-                'grade','subjects','latitude','longitude'
-                ]
+        fields='__all__'
+        
+class TeacherUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Teacher
+        fields = ['address','gender','education','teaching_experience','teaching_location','grade','subjects','about_me']   
+        
+class TeacherDetailSerializer(serializers.ModelSerializer):
+    address = serializers.CharField(required=False)  
+    gender = serializers.CharField(required=False)  
+
+    class Meta:
+        model = Teacher
+        fields = '__all__'
+
         
 class StudentSerializer(serializers.ModelSerializer):
     class Meta:
         model=Student
-        fields=['full_name','email','phone_number','image',
-                'address','subjects']
+        fields=['email','date_joined'
+                ]
+        
+class EnrollmentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model=EnrollmentForm
+        fields = '__all__'        
 
-
-# class SubjectSerializer(serializers.ModelSerializer):
+# class ClassSubjectSerializer(serializers.ModelSerializer):
+#     class_name = serializers.CharField(source='class_name.name')
+#     subject = serializers.CharField(source='subject.name')
+#     class_name_id = serializers.IntegerField(source='class_name.id')
+#     subject_id = serializers.IntegerField(source='subject.id')
+    
 #     class Meta:
-#         model = Subject
-#         fields = '__all__'
+#         model = ClassSubject
+#         fields=['id','class_name_id','class_name','subject_id','subject']
 
-# class ClassSerializer(serializers.ModelSerializer):
-#     subjects = SubjectSerializer(many=True, read_only=True)
 
-#     class Meta:
-#         model = Class
-#         fields = ['id', 'class_number', 'subjects']
+class SubjectSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Subject
+        fields = '__all__'
+
+class ClassSubjectSerializer(serializers.ModelSerializer):
+    class_name = serializers.StringRelatedField(source='class_name.name')
+    subjects = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ClassSubject
+        fields = ['id', 'class_name_id', 'class_name', 'subjects']
+
+    def get_subjects(self, obj):
+        subjects = Subject.objects.filter(classsubject__class_name_id=obj.class_name_id).distinct()
+        return SubjectSerializer(subjects, many=True).data
+
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        class_name_id = representation['class_name_id']
+        if 'class_names' not in self.context:
+            self.context['class_names'] = set()
+        if class_name_id in self.context['class_names']:
+            return None
+        self.context['class_names'].add(class_name_id)
+        return representation
+    
+
+
+class ClassSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = Class
+        fields = '__all__'
+
+            

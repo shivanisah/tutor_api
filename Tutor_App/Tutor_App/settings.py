@@ -26,9 +26,10 @@ SECRET_KEY = 'django-insecure-o_51gqv$3-cm1s2)vvm=g%az29sa@)=5*60r9qacqpcv(14m^j
 DEBUG = True
 
 ALLOWED_HOSTS = [
- '127.0.0.1','192.168.1.83', '10.10.10.225','192.168.43.147','192.168.1.66','192.168.1.81'
+ '127.0.0.1','10.10.100.74', '192.168.1.71','192.168.1.72','192.168.1.83','192.168.1.82',
+   '10.10.10.225','192.168.43.147','192.168.1.66','192.168.1.81','192.168.1.80',' 10.10.100.210'
 ]
-
+ 
 
 # Application definition
 
@@ -54,6 +55,14 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = 'Tutor_App.urls'
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.TokenAuthentication',
+        # Other authentication classes...
+    ],
+    # Other settings...
+}
 
 TEMPLATES = [
     {
@@ -117,6 +126,9 @@ TIME_ZONE = 'UTC'
 USE_I18N = True
 
 USE_TZ = True
+
+TIME_ZONE = 'Asia/Kathmandu'
+
 
 
 # Static files (CSS, JavaScript, Images)
