@@ -1,8 +1,10 @@
+import datetime
 from django.utils import timezone
 from django.db import models 
 from django.contrib.auth.models import AbstractUser
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
-
+from django.contrib.contenttypes.models import ContentType
+from django.contrib.contenttypes.fields import GenericForeignKey
 
 from django.contrib.auth.models import Group,Permission
 from django.db.models.signals import post_save
@@ -23,11 +25,18 @@ class Subject(models.Model):
 class ClassSubject(models.Model):
     class_name = models.ForeignKey(Class, on_delete=models.CASCADE)
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE)
-    teacher = models.ForeignKey('Teacher', on_delete=models.CASCADE,null=True,blank=True)
 
     def __str__(self):
-        return f'{self.class_name_id} - {self.subject_id}'
+        return f'{self.class_name.name} - {self.subject.name}'
+
     
+class TeacherClass(models.Model):
+    class_subject = models.ForeignKey(ClassSubject, on_delete=models.CASCADE)
+    teacher = models.ForeignKey('Teacher', on_delete=models.CASCADE,null=True,blank=True)
+    def __str__(self):
+        return f'{self.class_subject.class_name.name} - {self.class_subject.subject.name} - {self.teacher}' 
+
+
 Teaching_Location = (
     ('Student Home','Student Home'),
     ('Tutor Place','Tutor Place'),
@@ -108,7 +117,7 @@ class Teacher(AbstractBaseUser, PermissionsMixin):
 
     full_name = models.CharField(max_length=100)
     email = models.EmailField(unique=True)
-    phone_number = models.CharField(max_length=100)
+    phone_number = models.CharField(max_length=100,null=True,blank=True)
     gender = models.CharField(
         max_length=6,
         choices=[('Male','Male'),('Female','Female')],blank=True,null=True
@@ -135,12 +144,13 @@ class Teacher(AbstractBaseUser, PermissionsMixin):
     verification_status = models.BooleanField(default = False)
     date_joined         = models.DateField(default = timezone.now)
     verification_date   = models.DateTimeField(null=True,blank=True)
+    preview_certificate = models.BooleanField(default = False)
+    preview_certificateDate = models.DateTimeField(null = True,blank = True)
+    block = models.BooleanField(default = False)
 
-    confirmation = models.BooleanField(default=False)
-    cancellation = models.BooleanField(default=False)
 
     USERNAME_FIELD = 'email'
-    REQUIRED_FIELDS = ['full_name','email','phone_number']
+    REQUIRED_FIELDS = ['full_name','email']
 
     objects = MyUserManager()
 
@@ -156,6 +166,20 @@ class Student(AbstractBaseUser):
     is_active = models.BooleanField(default=False)
     is_student=models.BooleanField(default=True)
     date_joined = models.DateField(default = timezone.now)
+    name = models.CharField(max_length = 100,null=True,blank = True)
+    number = models.CharField(max_length = 100,null=True,blank = True)
+    parents_name = models.CharField(max_length =100,null= True,blank = True)
+    parents_number = models.CharField(max_length = 100,null =True,blank = True)
+    gender = models.CharField(
+        max_length=6,
+        choices=[('Male','Male'),('Female','Female')],blank=True,null=True
+    )
+    block = models.BooleanField(default= False)
+    address = models.CharField(max_length=100,null=True,blank=True)
+    latitude = models.DecimalField(max_digits=20, decimal_places=12,null=True,blank=True)
+    longitude = models.DecimalField(max_digits=20, decimal_places=12,null=True,blank=True)
+
+
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['email']
 
@@ -164,37 +188,20 @@ class Student(AbstractBaseUser):
     def __str__(self):
         return self.email
     
+class User_Admin(AbstractBaseUser):
 
-class User(AbstractUser):
     email = models.EmailField(unique=True)
-    username=None
-    USERNAME_FIELD = "email"
-    REQUIRED_FIELDS = []
-    objects = MyUserManager() 
+    is_active = models.BooleanField(default=False)
+    is_admin = models.BooleanField(default=True)
+    date_joined = models.DateField(default = timezone.now)
+    USERNAME_FIELD = 'email'
+    REQUIRED_FIELDS = ['email']
 
-    groups = models.ManyToManyField(
-        Group,
-        verbose_name='groups',
-        blank=True,
-        help_text='The groups this user belongs to.',
-        related_name='custom_user_set',  
-        related_query_name='custom_user'
-    )
-    user_permissions = models.ManyToManyField(
-        Permission,
-        verbose_name='user permissions',
-        blank=True,
-        help_text='Specific permissions for this user.',
-        related_name='custom_user_set', 
-        related_query_name='custom_user'
-    )
-
-class Admin(models.Model):
-    admin = models.OneToOneField(User,on_delete=models.CASCADE)
-    email = models.EmailField(unique=True)
+    objects = MyUserManager()
 
     def __str__(self):
         return self.email
+
 
 
 class EnrollmentForm(models.Model):
@@ -213,7 +220,9 @@ class EnrollmentForm(models.Model):
     grade = models.CharField(max_length=100,null=True,blank=True)
     subjects = models.CharField(max_length=100,null=True,blank=True)
     preffered_teaching_location = models.CharField(max_length=100,choices = Teaching_Location,null=True,blank=True)
-    teaching_time = models.CharField(max_length = 100,null=True,blank=True)
+    student_email = models.EmailField(null = True,blank = True)
+    teacher_email = models.EmailField(null = True,blank = True)
+    teacher_name = models.CharField(max_length=100,null = True,blank = True)
     date_joined = models.DateField(default=timezone.now)
     time = models.TimeField(auto_now = True)
     confirmation = models.BooleanField(default = False)
@@ -224,7 +233,12 @@ class EnrollmentForm(models.Model):
     startTime = models.TimeField(null=True,blank=True)
     endTime = models.TimeField(null=True,blank=True)
     finishedTeachingDate = models.CharField(max_length = 100,null = True, blank = True)
-    
+
+    # def save(self, *args, **kwargs):
+    #     if self.finishedTeachingDate:
+    #         date_obj = datetime.strptime(self.finishedTeachingDate, "%Y-%m-%d %H:%M:%S")
+    #         self.finishedTeachingDate = date_obj
+    #     super(EnrollmentForm, self).save(*args, **kwargs)
 
 
 class TimeSlot(models.Model): 
@@ -232,12 +246,57 @@ class TimeSlot(models.Model):
     startTime = models.TimeField()
     endTime =  models.TimeField()
     disable = models.BooleanField(default = False)
-    enable = models.BooleanField(default = False)
 
 
 
+class ResetPassword(models.Model):
+    pw_reset_user = models.ForeignKey(
+        Teacher, related_name='pw_reset_user', on_delete=models.CASCADE)
+    code = models.CharField(max_length=64, unique=True, default=None)
+
+    def __str__(self):
+        return str(self.pw_reset_user)
+
+    class Meta:
+        verbose_name_plural = 'ResetPassword'
+
+class ResetPasswordVerify(models.Model):
+    content_type = models.ForeignKey(ContentType,on_delete = models.CASCADE)
+    object_id = models.PositiveBigIntegerField()
+    pw_reset_user = GenericForeignKey('content_type','object_id')
+    code = models.CharField(max_length = 64, unique = True,default = None)
+
+    def __str__(self):
+        return str(self.pw_reset_user)
+    
+    class Meta:
+        verbose_name_plural = 'ResetPasswordVerify'
+
+class ChangePasswordVerify(models.Model):
+    content_type = models.ForeignKey(ContentType,on_delete = models.CASCADE)
+    object_id = models.PositiveBigIntegerField()
+    pw_reset_user = GenericForeignKey('content_type','object_id')
+    code = models.CharField(max_length = 64, unique = True,default = None)
+    new_password = models.CharField(max_length = 128)
+
+    def __str__(self):
+        return str(self.pw_reset_user)
+    
+    class Meta:
+        verbose_name_plural = 'ChangePasswordVerify'
 
 
+class Student_Notification(models.Model):
+    student_id = models.ForeignKey(Student,on_delete=models.CASCADE)
+    teacher_id = models.ForeignKey(Teacher,on_delete=models.CASCADE)
+    message    = models.TextField(null = True,blank = True)
+    date       = models.DateTimeField()
+    seen       = models.BooleanField(default = False)
 
-
-
+class Teacher_Notification(models.Model):
+    teacher_id = models.ForeignKey(Teacher,on_delete = models.CASCADE)
+    message    = models.TextField(null=True,blank=True)
+    date       = models.DateTimeField(null = True,blank=True)
+    seen       = models.BooleanField(default = False)
+    previewCertificate    = models.BooleanField(default = False)
+    verified   = models.BooleanField(default = False)

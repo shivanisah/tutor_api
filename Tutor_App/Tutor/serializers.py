@@ -2,7 +2,7 @@ from collections import OrderedDict
 import json
 from django.http import HttpResponse, JsonResponse
 from rest_framework import serializers
-from .models import Admin, ClassSubject, EnrollmentForm, Student, Subject, Teacher,Class, TimeSlot, User
+from .models import ClassSubject, EnrollmentForm, Student, Student_Notification, Subject, Teacher,Class, Teacher_Notification, TimeSlot, User_Admin
 from django.contrib.auth import get_user_model,password_validation,authenticate
 
 
@@ -45,6 +45,28 @@ class TeacherRegisterSerializer(serializers.ModelSerializer):
             password_validation.validate_password(password)
             return data
 
+class AddTeacherSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(
+                style={'input_type': 'password'},read_only=True
+
+    )
+
+    class Meta:
+        model= Teacher
+        fields= ['full_name','email','phone_number','image',
+                'address','password','gender',
+                'grade','subjects','latitude','longitude','certificate'
+                            
+                ]
+        read_only_fields = [ 'groups', 'user_permissions']
+    
+
+    def create(self, validated_data):
+        password = self.context.get('password')
+        teacher = Teacher.objects.create_user(password=password,**validated_data)
+        return teacher
+
+
 class StudentRegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(
                 style={'input_type': 'password'}
@@ -67,6 +89,42 @@ class StudentRegisterSerializer(serializers.ModelSerializer):
         validated_data.pop('password_confirmation')
         teacher = Student.objects.create_user(**validated_data)
         return teacher
+
+    def validate(self, data):
+        try:
+            password = data["password"]
+            password_c = data["password_confirmation"]
+        except KeyError as e:
+            print(e)
+        else:
+            if password != password_c:
+                raise serializers.ValidationError(
+                    "Doesn't match. Please confirm your password.")
+            password_validation.validate_password(password)
+            return data
+
+class AdminRegisterSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(
+                style={'input_type': 'password'}
+
+    )
+    password_confirmation = serializers.CharField(
+        style={'input_type': 'password'}, write_only=True
+    )
+
+    class Meta:
+        model= User_Admin
+        fields= ['email','password','password_confirmation'
+                            
+                ]
+
+        # read_only_fields = [ 'groups', 'user_permissions']
+    
+
+    def create(self, validated_data):
+        validated_data.pop('password_confirmation')
+        admin = User_Admin.objects.create_user(**validated_data)
+        return admin
 
     def validate(self, data):
         try:
@@ -105,9 +163,9 @@ class LoginSerializer(serializers.Serializer):
                     # raise serializers.ValidationError({'email': 'User with provided email does not exist'})
                     try:
                         # user=User.objects.get(email = email)
-                        user = Admin.objects.get(email = email)
-                        user_type="admin"
-                    except Admin.DoesNotExist:
+                        user = User_Admin.objects.get(email=email)
+                        user_type='admin'
+                    except User_Admin.DoesNotExist:
                         raise serializers.ValidationError({'email': 'User with provided email does not exist'})
 
             user = authenticate(email=email, password=password)
@@ -125,7 +183,22 @@ class LoginSerializer(serializers.Serializer):
         else:
             raise serializers.ValidationError({'credentials': 'Must include "email" and "password".'})
 
-        
+class ResetPasswordSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+
+class ResetPasswordVerifySerializer(serializers.Serializer):
+    reset_code = serializers.CharField()
+    new_password = serializers.CharField(style={'input_type': 'password'})
+
+class ChangePasswordSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    old_password = serializers.CharField(style={'input_type':'password'})
+    new_password = serializers.CharField(style={'input_type':'password'})
+
+class ChangePasswordVerifySerializer(serializers.Serializer):  
+    reset_code = serializers.CharField()  
+
 class TimeSlotSerializer(serializers.ModelSerializer):
     class Meta:
         model = TimeSlot
@@ -142,7 +215,10 @@ class TeacherSerializer(serializers.ModelSerializer):
 class TeacherUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Teacher
-        fields = ['address','gender','education','teaching_experience','teaching_location','grade','subjects','about_me']   
+        fields = ['phone_number','address','gender','education','teaching_experience','teaching_location','grade','subjects','about_me','image',
+                  'latitude','longitude','certificate'
+                  
+                  ]   
         
 class TeacherDetailSerializer(serializers.ModelSerializer):
     address = serializers.CharField(required=False)  
@@ -156,23 +232,33 @@ class TeacherDetailSerializer(serializers.ModelSerializer):
 class StudentSerializer(serializers.ModelSerializer):
     class Meta:
         model=Student
-        fields=['email','date_joined'
+        fields=['id','email','date_joined','name','number','parents_name','parents_number','gender','block','address','latitude','longitude'
                 ]
-        
+
+class StudentProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model=Student
+        fields=['name','number','parents_name','parents_number','gender','address','latitude','longitude'
+                ]
+
+
 class EnrollmentSerializer(serializers.ModelSerializer):
     class Meta:
         model=EnrollmentForm
-        fields = '__all__'        
+        fields = '__all__'     
 
-# class ClassSubjectSerializer(serializers.ModelSerializer):
-#     class_name = serializers.CharField(source='class_name.name')
-#     subject = serializers.CharField(source='subject.name')
-#     class_name_id = serializers.IntegerField(source='class_name.id')
-#     subject_id = serializers.IntegerField(source='subject.id')
-    
-#     class Meta:
-#         model = ClassSubject
-#         fields=['id','class_name_id','class_name','subject_id','subject']
+class StudentNotificationSerializer(serializers.ModelSerializer):
+    teacher = TeacherSerializer(source = 'teacher_id',read_only = True)
+    class Meta:
+        model = Student_Notification
+        fields = ['id','student_id','teacher_id','message','seen','date','teacher']          
+
+class TeacherNotificationSerializer(serializers.ModelSerializer):
+    teacher = TeacherSerializer(source = 'teacher_id',read_only = True)
+    class Meta:
+        model = Teacher_Notification
+        fields = ['id','teacher_id','message','seen','date','teacher','previewCertificate','verified']          
+
 
 
 class SubjectSerializer(serializers.ModelSerializer):
